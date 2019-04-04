@@ -5,7 +5,7 @@ const readdir = promisify(fs.readdir);
 const Headerbar = require('handlebars');
 const path = require('path');
 const config = require('../config/conf');
-
+const isFresh = require('./cache');
 // 引入 template ,同步方法，只执行一次准备好模板
 const source = fs.readFileSync(path.join(__dirname,'../template/dir.html'));
 // 编译一下模板，source读到的是buffer, toString 转成字符串
@@ -16,6 +16,11 @@ module.exports = async function (req, res, filePath) {
     const stats = await stat(filePath);
     // 判断是否是文件
     if (stats.isFile()) {
+      if(isFresh(stats, req, res)){
+        res.statusCode = 304; 
+        res.end();
+        return;
+      }
       res.statusCode = 200;
       res.setHeader('Content-type', 'text/plain');
       // 把文件内容通过流的方式一点一点读 出来
@@ -29,9 +34,11 @@ module.exports = async function (req, res, filePath) {
       res.setHeader('Content-type', 'text/html');
       // 需要什么样的数据，展示出来
       const dir  = path.relative(config.root, filePath);
+
+      console.log(config.root, dir);
       const data = {
         title: path.basename(filePath),
-        dir: `/${dir}`,
+        dir: dir ? `/${dir}` : "",
         files
       }
       res.end(temp(data));
